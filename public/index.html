@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IoInvesto · Creative Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070C18;
+    --surface: #0D1526;
+    --surface2: #131E32;
+    --border: #1C2B47;
+    --accent: #00E5B4;
+    --accent-dim: rgba(0,229,180,0.12);
+    --red: #FF4E6A;
+    --red-dim: rgba(255,78,106,0.12);
+    --yellow: #FFB930;
+    --yellow-dim: rgba(255,185,48,0.12);
+    --green: #00E5B4;
+    --green-dim: rgba(0,229,180,0.12);
+    --text: #E8EEF8;
+    --muted: #5A7098;
+    --muted2: #8AA0BC;
+    --font-ui: 'Syne', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-ui); min-height: 100vh; }
+
+  /* ── LAYOUT ── */
+  #app { display: flex; min-height: 100vh; }
+  #sidebar {
+    width: 220px; min-height: 100vh; background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; position: fixed; top: 0; left: 0; z-index: 10;
+  }
+  #main { margin-left: 220px; flex: 1; padding: 32px; max-width: 1400px; }
+
+  /* ── SIDEBAR ── */
+  .logo {
+    padding: 24px 20px 20px; border-bottom: 1px solid var(--border);
+    font-family: var(--font-ui); font-weight: 800; font-size: 18px; letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--accent); }
+  .logo-sub { font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; letter-spacing: 0.5px; text-transform: uppercase; font-family: var(--font-mono); }
+  nav { padding: 16px 12px; flex: 1; }
+  nav a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+    color: var(--muted2); text-decoration: none; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all .15s; margin-bottom: 4px; letter-spacing: 0.2px;
+  }
+  nav a:hover { background: var(--surface2); color: var(--text); }
+  nav a.active { background: var(--accent-dim); color: var(--accent); }
+  nav a .ico { font-size: 16px; width: 20px; text-align: center; }
+  .nav-section { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 8px 12px 4px; font-family: var(--font-mono); }
+
+  /* ── HEADER ── */
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+  .page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; }
+  .page-title span { color: var(--accent); }
+
+  /* ── CARDS ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 12px; }
+
+  /* ── STAT CARDS ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 6px; }
+  .stat-value { font-size: 28px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -1px; }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+
+  /* ── BUTTONS ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all .15s; font-family: var(--font-ui); letter-spacing: 0.2px; }
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-primary:hover { background: #00ffc9; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,78,106,0.3); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-family: var(--font-mono); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* ── BADGES ── */
+  .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; font-family: var(--font-mono); white-space: nowrap; }
+  .badge-green { background: var(--green-dim); color: var(--green); }
+  .badge-red { background: var(--red-dim); color: var(--red); }
+  .badge-yellow { background: var(--yellow-dim); color: var(--yellow); }
+  .badge-blue { background: rgba(96,165,250,0.12); color: #60A5FA; }
+  .badge-purple { background: rgba(167,139,250,0.12); color: #A78BFA; }
+  .badge-gray { background: rgba(90,112,152,0.2); color: var(--muted2); }
+
+  /* ── FORMS ── */
+  .form-group { margin-bottom: 16px; }
+  label { display: block; font-size: 12px; color: var(--muted2); margin-bottom: 6px; font-family: var(--font-mono); }
+  input, select, textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); padding: 10px 12px; font-size: 14px; font-family: var(--font-ui);
+    outline: none; transition: border-color .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+  select option { background: var(--surface); }
+
+  /* ── ALERT ── */
+  .alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .alert-info { background: var(--accent-dim); border: 1px solid rgba(0,229,180,0.3); color: var(--accent); }
+  .alert-error { background: var(--red-dim); border: 1px solid rgba(255,78,106,0.3); color: var(--red); }
+  .alert-warn { background: var(--yellow-dim); border: 1px solid rgba(255,185,48,0.3); color: var(--yellow); }
+
+  /* ── FILTERS ── */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+  .filter-select { width: auto; min-width: 140px; padding: 7px 10px; font-size: 12px; }
+
+  /* ── AD CARD ── */
+  .ad-row-thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 18px; }
+  .ad-name { font-size: 13px; font-weight: 600; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ad-id { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+  .metric { font-family: var(--font-mono); font-size: 13px; }
+  .metric.good { color: var(--green); }
+  .metric.bad { color: var(--red); }
+  .metric.neutral { color: var(--yellow); }
+
+  /* ── DETAIL PANEL ── */
+  .detail-panel {
+    position: fixed; right: 0; top: 0; bottom: 0; width: 460px; background: var(--surface);
+    border-left: 1px solid var(--border); z-index: 100; overflow-y: auto; transform: translateX(100%);
+    transition: transform .25s ease; padding: 24px;
+  }
+  .detail-panel.open { transform: translateX(0); }
+  .detail-close { position: absolute; top: 16px; right: 16px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted2); width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; }
+  .detail-close:hover { color: var(--text); }
+  .detail-thumb { width: 100%; height: 160px; object-fit: cover; border-radius: 8px; background: var(--surface2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 40px; margin-bottom: 16px; }
+  .detail-section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+  .detail-section:last-child { border-bottom: none; }
+  .detail-section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 10px; }
+  .label-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .label-item { background: var(--surface2); border-radius: 6px; padding: 8px 10px; }
+  .label-k { font-size: 10px; color: var(--muted); font-family: var(--font-mono); margin-bottom: 2px; }
+  .label-v { font-size: 12px; font-weight: 600; }
+  .metric-row { display: flex; justify-content: space-between; padding: 6px 0; }
+  .metric-row-k { color: var(--muted2); font-size: 13px; }
+  .metric-row-v { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+  .iteration-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .iteration-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .iteration-desc { font-size: 12px; color: var(--muted2); line-height: 1.5; }
+  .list-dot { padding: 4px 0 4px 12px; font-size: 13px; color: var(--muted2); position: relative; }
+  .list-dot::before { content: '·'; position: absolute; left: 0; color: var(--accent); }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99; display: none; }
+  .overlay.open { display: block; }
+
+  /* ── WIN RATE BAR ── */
+  .wr-bar-bg { background: var(--bg); border-radius: 4px; height: 6px; overflow: hidden; }
+  .wr-bar { height: 6px; border-radius: 4px; background: var(--accent); transition: width .5s; }
+  .wr-bar.medium { background: var(--yellow); }
+  .wr-bar.low { background: var(--red); }
+
+  /* ── REPORT ── */
+  .report-body { white-space: pre-wrap; font-size: 14px; line-height: 1.7; color: var(--muted2); }
+  .report-body strong, .report-body b { color: var(--text); }
+
+  /* ── SETTINGS ── */
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .settings-grid { grid-template-columns: 1fr; } #main { padding: 16px; } }
+
+  /* ── LOADING ── */
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row td { text-align: center; padding: 40px; color: var(--muted); }
+
+  /* ── SECTION DIVIDER ── */
+  .section-divider { margin: 28px 0; border: none; border-top: 1px solid var(--border); }
+
+  /* ── ACCOUNT CHIPS ── */
+  .account-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .account-chip { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 12px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 6px; }
+  .account-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .account-chip:hover { border-color: var(--muted2); }
+  .account-chip .rm { color: var(--muted); font-size: 14px; }
+  .account-chip .rm:hover { color: var(--red); }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="logo">
+      <div>Io<span>Investo</span></div>
+      <div class="logo-sub">Creative Analytics</div>
+    </div>
+    <nav>
+      <div class="nav-section">Principale</div>
+      <a class="active" onclick="showPage('creatives')" id="nav-creatives">
+        <span class="ico">🎨</span> Creativi
+      </a>
+      <a onclick="showPage('analytics')" id="nav-analytics">
+        <span class="ico">📊</span> Analytics
+      </a>
+      <a onclick="showPage('reports')" id="nav-reports">
+        <span class="ico">📋</span> Report
+      </a>
+      <div class="nav-section" style="margin-top:16px">Config</div>
+      <a onclick="showPage('settings')" id="nav-settings">
+        <span class="ico">⚙️</span> Impostazioni
+      </a>
+    </nav>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <!-- ACCOUNT BAR -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:24px;flex-wrap:wrap" id="account-bar">
+      <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px">Account:</span>
+      <div class="account-chips" id="account-chips">
+        <div class="account-chip active" onclick="selectAccount('all')" id="chip-all">Tutti</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openAddAccount()">+ Aggiungi account</button>
+    </div>
+
+    <!-- PAGES -->
+    <div id="page-creatives"></div>
+    <div id="page-analytics" style="display:none"></div>
+    <div id="page-reports" style="display:none"></div>
+    <div id="page-settings" style="display:none"></div>
+  </div>
+
+  <!-- DETAIL PANEL -->
+  <div class="overlay" id="overlay" onclick="closeDetail()"></div>
+  <div class="detail-panel" id="detail-panel">
+    <div class="detail-close" onclick="closeDetail()">×</div>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- MODAL: Add Account -->
+<div id="modal-account" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:460px;max-width:95vw">
+    <h3 style="font-size:18px;font-weight:800;margin-bottom:20px">Aggiungi Account Meta Ads</h3>
+    <div id="available-accounts-list"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal()">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let currentAccount = 'all';
+let allAds = [];
+let settings = {};
+let accounts = [];
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  await loadSettings();
+  await loadAccounts();
+  renderCreatives();
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, { headers: {'Content-Type': 'application/json'}, ...opts });
+  return res.json();
+}
+
+async function loadSettings() {
+  settings = await api('/api/settings');
+}
+
+async function loadAccounts() {
+  accounts = await api('/api/accounts');
+  renderAccountChips();
+}
+
+function renderAccountChips() {
+  const chips = document.getElementById('account-chips');
+  chips.innerHTML = `<div class="account-chip ${currentAccount==='all'?'active':''}" onclick="selectAccount('all')" id="chip-all">Tutti</div>`;
+  accounts.forEach(acc => {
+    chips.innerHTML += `<div class="account-chip ${currentAccount===acc.id?'active':''}" onclick="selectAccount('${acc.id}')" id="chip-${acc.id}">
+      ${acc.name} <span class="rm" onclick="event.stopPropagation();removeAccount('${acc.id}')">×</span>
+    </div>`;
+  });
+}
+
+function selectAccount(id) {
+  currentAccount = id;
+  renderAccountChips();
+  const page = document.querySelector('[id^="page-"]:not([style*="display:none"])');
+  if (page) {
+    const p = page.id.replace('page-','');
+    if (p === 'creatives') renderCreatives();
+    else if (p === 'analytics') renderAnalytics();
+    else if (p === 'reports') renderReports();
+  }
+}
+
+async function removeAccount(id) {
+  if (!confirm('Rimuovere questo account?')) return;
+  await api(`/api/accounts/${id}`, { method: 'DELETE' });
+  if (currentAccount === id) currentAccount = 'all';
+  await loadAccounts();
+}
+
+// ── NAV ──────────────────────────────────────────────────────────────────────
+function showPage(page) {
+  ['creatives','analytics','reports','settings'].forEach(p => {
+    document.getElementById(`page-${p}`).style.display = p === page ? '' : 'none';
+    document.getElementById(`nav-${p}`).classList.toggle('active', p === page);
+  });
+  if (page === 'creatives') renderCreatives();
+  else if (page === 'analytics') renderAnalytics();
+  else if (page === 'reports') renderReports();
+  else if (page === 'settings') renderSettings();
+}
+
+// ── CREATIVES PAGE ────────────────────────────────────────────────────────────
+async function renderCreatives() {
+  const el = document.getElementById('page-creatives');
+  el.innerHTML = `<div class="page-header">
+    <div class="page-title">Creativi <span>Meta Ads</span></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="syncAds()">🔄 Sincronizza</button>
+      <button class="btn btn-primary" onclick="analyzeAll()">🤖 Analizza tutti</button>
+    </div>
+  </div>
+  <div class="filters">
+    <select class="filter-select" id="filter-status" onchange="filterAds()">
+      <option value="">Tutti gli status</option>
+      <option value="ACTIVE">Attivi</option>
+      <option value="PAUSED">In pausa</option>
+    </select>
+    <select class="filter-select" id="filter-angle" onchange="filterAds()">
+      <option value="">Tutti gli angoli</option>
+      <option>Paura pensione</option>
+      <option>Indipendenza dal banker</option>
+      <option>Confronto fee-only vs banca</option>
+      <option>Autorità/Expert</option>
+      <option>Rendimento</option>
+      <option>Protezione patrimonio</option>
+      <option>Risparmio fiscale</option>
+    </select>
+    <select class="filter-select" id="filter-stage" onchange="filterAds()">
+      <option value="">Tutti i funnel stage</option>
+      <option>Top of Funnel</option>
+      <option>Middle of Funnel</option>
+      <option>Bottom of Funnel</option>
+    </select>
+    <select class="filter-select" id="filter-asset" onchange="filterAds()">
+      <option value="">Tutti i tipi</option>
+      <option>UGC</option>
+      <option>Video Avatar AI</option>
+      <option>Static Image</option>
+      <option>Carousel</option>
+      <option>Screen Recording</option>
+    </select>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Nome ad</th>
+            <th>Status</th>
+            <th>Spesa</th>
+            <th>Lead</th>
+            <th>CPL</th>
+            <th>CTR</th>
+            <th>Hook%</th>
+            <th>Angolo</th>
+            <th>Stage</th>
+            <th>AI</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="ads-tbody"><tr class="loading-row"><td colspan="12"><div class="spinner"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>`;
+
+  await loadAds();
+}
+
+async function loadAds() {
+  const qs = currentAccount !== 'all' ? `?account_id=${currentAccount}` : '';
+  allAds = await api(`/api/ads${qs}`);
+  filterAds();
+}
+
+function filterAds() {
+  const status = document.getElementById('filter-status')?.value || '';
+  const angle = document.getElementById('filter-angle')?.value || '';
+  const stage = document.getElementById('filter-stage')?.value || '';
+  const asset = document.getElementById('filter-asset')?.value || '';
+  const cplTarget = parseFloat(settings.cpl_target || 50);
+
+  let filtered = allAds;
+  if (status) filtered = filtered.filter(a => a.status === status);
+  if (angle) filtered = filtered.filter(a => a.messaging_angle === angle);
+  if (stage) filtered = filtered.filter(a => a.funnel_stage === stage);
+  if (asset) filtered = filtered.filter(a => a.asset_type === asset);
+
+  const tbody = document.getElementById('ads-tbody');
+  if (!tbody) return;
+
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr class="loading-row"><td colspan="12" style="color:var(--muted)">Nessun ad trovato.<br><small>Aggiungi un account e sincronizza.</small></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(ad => {
+    const isWinner = ad.leads > 0 && ad.cpl > 0 && ad.cpl <= cplTarget;
+    const cplColor = !ad.cpl ? '' : (isWinner ? 'good' : (ad.cpl > cplTarget * 1.3 ? 'bad' : 'neutral'));
+    const statusBadge = ad.status === 'ACTIVE' ? 'badge-green' : 'badge-gray';
+    const aiStatus = ad.ai_summary ? '<span class="badge badge-blue">✓ AI</span>' : '<span class="badge badge-gray">—</span>';
+    const thumb = ad.thumbnail_url
+      ? `<img src="${ad.thumbnail_url}" style="width:48px;height:48px;border-radius:6px;object-fit:cover" onerror="this.style.display='none'" />`
+      : `<div class="ad-row-thumb">📷</div>`;
+
+    return `<tr style="cursor:pointer" onclick="openDetail('${ad.id}')">
+      <td>${thumb}</td>
+      <td><div class="ad-name">${ad.name}</div><div class="ad-id">${ad.id}</div></td>
+      <td><span class="badge ${statusBadge}">${ad.status}</span></td>
+      <td class="metric">€${(ad.spend||0).toFixed(0)}</td>
+      <td class="metric ${isWinner?'good':''}">${ad.leads||0}</td>
+      <td class="metric ${cplColor}">€${(ad.cpl||0).toFixed(0)}</td>
+      <td class="metric">${(ad.ctr||0).toFixed(2)}%</td>
+      <td class="metric">${(ad.hook_rate||0).toFixed(1)}%</td>
+      <td><span class="badge badge-purple" style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${ad.messaging_angle||'—'}</span></td>
+      <td><span class="badge badge-blue" style="font-size:10px">${ad.funnel_stage||'—'}</span></td>
+      <td>${aiStatus}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();analyzeOne('${ad.id}')">AI</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function syncAds() {
+  if (accounts.length === 0) { alert('Aggiungi prima un account!'); return; }
+  const accs = currentAccount === 'all' ? accounts.map(a => a.id) : [currentAccount];
+  for (const id of accs) {
+    await api(`/api/sync/${id}`, { method: 'POST' });
+  }
+  await loadAds();
+}
+
+async function analyzeOne(adId) {
+  const res = await api(`/api/analyze/${adId}`, { method: 'POST' });
+  if (res.error) { alert('Errore: ' + res.error); return; }
+  await loadAds();
+  openDetail(adId);
+}
+
+async function analyzeAll() {
+  const body = currentAccount !== 'all' ? { account_id: currentAccount } : {};
+  const res = await api('/api/analyze-all', { method: 'POST', body: JSON.stringify(body) });
+  if (res.queued === 0) { alert('Tutti gli ad sono già stati analizzati!'); return; }
+
+  alert(`Avvio analisi di ${res.queued} ad. Premi OK e attendi...`);
+  for (const id of res.ids) {
+    await api(`/api/analyze/${id}`, { method: 'POST' });
+  }
+  await loadAds();
+  alert('Analisi completata!');
+}
+
+// ── DETAIL PANEL ──────────────────────────────────────────────────────────────
+function openDetail(adId) {
+  const ad = allAds.find(a => a.id === adId);
+  if (!ad) return;
+  const cplTarget = parseFloat(settings.cpl_target || 50);
+  const isWinner = ad.leads > 0 && ad.cpl > 0 && ad.cpl <= cplTarget;
+  const strengths = ad.strengths ? JSON.parse(ad.strengths) : [];
+  const improvements = ad.improvements ? JSON.parse(ad.improvements) : [];
+  const iterations = ad.iterations ? JSON.parse(ad.iterations) : [];
+
+  const impactColors = { 'Alto': 'badge-green', 'Medio': 'badge-yellow', 'Basso': 'badge-red' };
+
+  document.getElementById('detail-content').innerHTML = `
+    ${ad.thumbnail_url
+      ? `<img src="${ad.thumbnail_url}" style="width:100%;height:160px;object-fit:cover;border-radius:8px;margin-bottom:16px" />`
+      : `<div style="width:100%;height:100px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px">📷</div>`
+    }
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span class="badge ${isWinner?'badge-green':'badge-red'}">${isWinner?'✓ WINNER':'✗ DA OTTIMIZZARE'}</span>
+      <span class="badge badge-gray">${ad.status}</span>
+    </div>
+    <h3 style="font-size:16px;font-weight:800;margin:10px 0 4px;line-height:1.3">${ad.name}</h3>
+    <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:16px">${ad.id}</div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Metriche</div>
+      <div class="metric-row"><span class="metric-row-k">💰 Spesa</span><span class="metric-row-v">€${(ad.spend||0).toFixed(2)}</span></div>
+      <div class="metric-row"><span class="metric-row-k">👥 Lead</span><span class="metric-row-v" style="color:${isWinner?'var(--green)':'var(--text)'}">${ad.leads||0}</span></div>
+      <div class="metric-row"><span class="metric-row-k">📊 CPL</span><span class="metric-row-v" style="color:${!ad.cpl?'var(--muted)':(isWinner?'var(--green)':ad.cpl>cplTarget*1.3?'var(--red)':'var(--yellow)')}">${ad.cpl?'€'+ad.cpl.toFixed(2):'—'} <span style="font-size:10px;color:var(--muted)">(target €${cplTarget})</span></span></div>
+      <div class="metric-row"><span class="metric-row-k">🖱️ CTR</span><span class="metric-row-v">${(ad.ctr||0).toFixed(2)}%</span></div>
+      <div class="metric-row"><span class="metric-row-k">🎣 Hook Rate</span><span class="metric-row-v">${(ad.hook_rate||0).toFixed(1)}%</span></div>
+      <div class="metric-row"><span class="metric-row-k">⏱️ Hold Rate</span><span class="metric-row-v">${(ad.hold_rate||0).toFixed(1)}%</span></div>
+    </div>
+
+    ${ad.ai_summary ? `
+    <div class="detail-section">
+      <div class="detail-section-title">AI Labels</div>
+      <div class="label-grid">
+        ${[['Tipo Asset',ad.asset_type],['Formato',ad.visual_format],['Angolo',ad.messaging_angle],['Hook',ad.hook_tactic],['Offerta',ad.offer_type],['Stage',ad.funnel_stage]].map(([k,v])=>`
+          <div class="label-item"><div class="label-k">${k}</div><div class="label-v">${v||'—'}</div></div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">📝 AI Summary</div>
+      <p style="font-size:13px;color:var(--muted2);line-height:1.6">${ad.ai_summary}</p>
+    </div>
+
+    ${strengths.length ? `<div class="detail-section">
+      <div class="detail-section-title">✅ Punti di forza</div>
+      ${strengths.map(s=>`<div class="list-dot">${s}</div>`).join('')}
+    </div>` : ''}
+
+    ${improvements.length ? `<div class="detail-section">
+      <div class="detail-section-title">⚠️ Aree di miglioramento</div>
+      ${improvements.map(s=>`<div class="list-dot">${s}</div>`).join('')}
+    </div>` : ''}
+
+    ${iterations.length ? `<div class="detail-section">
+      <div class="detail-section-title">🔁 Iterazioni consigliate</div>
+      ${iterations.map(it=>`<div class="iteration-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div class="iteration-title">${it.title}</div>
+          <span class="badge ${impactColors[it.expected_impact]||'badge-gray'}">${it.expected_impact}</span>
+        </div>
+        <div class="iteration-desc">${it.description}</div>
+      </div>`).join('')}
+    </div>` : ''}
+    ` : `
+    <div class="alert alert-warn">
+      Questo ad non è ancora stato analizzato dall'AI.
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;display:block" onclick="analyzeOne('${ad.id}')">🤖 Analizza ora</button>
+    </div>
+    `}
+  `;
+
+  document.getElementById('detail-panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+// ── ANALYTICS PAGE ────────────────────────────────────────────────────────────
+async function renderAnalytics() {
+  const el = document.getElementById('page-analytics');
+  el.innerHTML = `<div class="page-header"><div class="page-title">Analytics <span>& Insights</span></div></div>
+  <div style="text-align:center;padding:40px"><div class="spinner"></div></div>`;
+
+  const qs = currentAccount !== 'all' ? `?account_id=${currentAccount}` : '';
+  const data = await api(`/api/analytics${qs}`);
+  const s = data.summary;
+  const cplTarget = s.cpl_target;
+
+  const winColor = s.win_rate >= 50 ? 'accent' : s.win_rate >= 30 ? 'yellow' : 'red';
+
+  el.innerHTML = `
+  <div class="page-header"><div class="page-title">Analytics <span>& Insights</span></div></div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value ${winColor}">${s.win_rate}%</div>
+      <div class="stat-sub">${s.winners}/${s.total} ads under €${cplTarget} CPL</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">CPL Medio</div>
+      <div class="stat-value ${s.avg_cpl>0&&s.avg_cpl<=cplTarget?'accent':s.avg_cpl>cplTarget*1.3?'red':'yellow'}">€${s.avg_cpl.toFixed(0)}</div>
+      <div class="stat-sub">Target: €${cplTarget}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Spesa Totale</div>
+      <div class="stat-value">€${s.total_spend.toFixed(0)}</div>
+      <div class="stat-sub">${s.total} ads analizzati</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Lead Totali</div>
+      <div class="stat-value accent">${s.total_leads}</div>
+      <div class="stat-sub">CPL medio: €${s.avg_cpl.toFixed(0)}</div>
+    </div>
+  </div>
+
+  <!-- BREAKDOWN TABLES -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    ${renderBreakdownCard('Tipo di Asset', data.by_asset_type, cplTarget)}
+    ${renderBreakdownCard('Angolo di Messaggio', data.by_messaging_angle, cplTarget)}
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+    ${renderBreakdownCard('Hook Tactic', data.by_hook_tactic, cplTarget)}
+    ${renderBreakdownCard('Funnel Stage', data.by_funnel_stage, cplTarget)}
+  </div>
+
+  <!-- KILL/SCALE/WATCH -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="card-title">Kill · Scale · Watch</div>
+    ${renderKSW('Top of Funnel', data.kill_scale_watch.top_of_funnel, 'Hook Rate + CTR')}
+    ${renderKSW('Middle of Funnel', data.kill_scale_watch.middle_of_funnel, 'CTR + CPL')}
+    ${renderKSW('Bottom of Funnel', data.kill_scale_watch.bottom_of_funnel, 'CPL + Lead')}
+  </div>
+
+  <!-- ITERATION PRIORITY -->
+  ${data.iteration_priority.length ? `
+  <div class="card">
+    <div class="card-title">⚡ Priorità di Iterazione</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">Ad con alta spesa e CPL sopra target — intervieni subito.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Spesa</th><th>Lead</th><th>CPL</th><th>Problema</th><th></th></tr></thead>
+        <tbody>
+          ${data.iteration_priority.map(ad => `
+            <tr style="cursor:pointer" onclick="showPage('creatives');setTimeout(()=>openDetail('${ad.id}'),300)">
+              <td class="ad-name" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ad.name}</td>
+              <td class="metric">€${(ad.spend||0).toFixed(0)}</td>
+              <td class="metric">${ad.leads||0}</td>
+              <td class="metric bad">€${(ad.cpl||0).toFixed(0)}</td>
+              <td style="font-size:12px;color:var(--muted2)">${ad.cpl > cplTarget ? 'CPL troppo alto' : 'Nessun lead'}</td>
+              <td><button class="btn btn-ghost btn-sm">Vedi →</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>` : ''}`;
+}
+
+function renderBreakdownCard(title, data, cplTarget) {
+  if (!data || !data.length) return `<div class="card"><div class="card-title">${title}</div><p style="color:var(--muted);font-size:13px">Nessun dato disponibile. Analizza prima gli ad.</p></div>`;
+  return `<div class="card">
+    <div class="card-title">${title}</div>
+    <table style="width:100%">
+      <thead><tr><th>Nome</th><th>Ads</th><th>Win%</th><th>Spesa</th><th>CPL Medio</th></tr></thead>
+      <tbody>
+        ${data.slice(0,8).map(g => {
+          const barClass = g.win_rate >= 60 ? '' : g.win_rate >= 35 ? 'medium' : 'low';
+          return `<tr>
+            <td style="font-size:12px;font-weight:600">${g.name}</td>
+            <td class="metric" style="font-size:12px">${g.count}</td>
+            <td style="min-width:80px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <div class="wr-bar-bg" style="flex:1"><div class="wr-bar ${barClass}" style="width:${g.win_rate}%"></div></div>
+                <span class="metric" style="font-size:11px;width:30px">${g.win_rate}%</span>
+              </div>
+            </td>
+            <td class="metric" style="font-size:12px">€${g.spend.toFixed(0)}</td>
+            <td class="metric ${g.avg_cpl>0&&g.avg_cpl<=cplTarget?'good':g.avg_cpl>cplTarget*1.3?'bad':'neutral'}" style="font-size:12px">${g.avg_cpl>0?'€'+g.avg_cpl.toFixed(0):'—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderKSW(label, items, metric) {
+  if (!items || !items.length) return '';
+  const grouped = { scale: items.filter(a=>a.recommendation==='scale'), watch: items.filter(a=>a.recommendation==='watch'), kill: items.filter(a=>a.recommendation==='kill') };
+  return `<div style="margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span class="badge badge-blue">${label}</span>
+      <span style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">Basato su: ${metric}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      ${['scale','watch','kill'].map(r => {
+        const color = r==='scale'?'badge-green':r==='watch'?'badge-yellow':'badge-red';
+        const icon = r==='scale'?'📈':r==='watch'?'👀':'🔴';
+        return `<div style="background:var(--bg);border-radius:8px;padding:12px;border:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+            <span>${icon}</span><span class="badge ${color}" style="text-transform:uppercase">${r}</span>
+            <span style="font-size:11px;color:var(--muted)">(${grouped[r].length})</span>
+          </div>
+          ${grouped[r].slice(0,3).map(a=>`<div style="font-size:11px;color:var(--muted2);padding:4px 0;border-bottom:1px solid var(--border)">
+            <div style="font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</div>
+            <div style="color:var(--muted)">${a.reason}</div>
+          </div>`).join('')}
+          ${grouped[r].length===0?`<div style="font-size:12px;color:var(--muted)">Nessun ad in questa categoria</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── REPORTS PAGE ──────────────────────────────────────────────────────────────
+async function renderReports() {
+  const el = document.getElementById('page-reports');
+  el.innerHTML = `
+  <div class="page-header">
+    <div class="page-title">Report <span>& Insights AI</span></div>
+    <button class="btn btn-primary" onclick="generateReport()">📋 Genera Report</button>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:24px;align-items:center">
+    <label style="margin:0;font-size:13px">Finestra dati:</label>
+    <select class="filter-select" id="report-days" style="width:auto">
+      <option value="7">Ultimi 7 giorni</option>
+      <option value="30" selected>Ultimi 30 giorni</option>
+      <option value="90">Ultimi 90 giorni</option>
+    </select>
+  </div>
+  <div id="reports-list"></div>`;
+
+  await loadReports();
+}
+
+async function loadReports() {
+  const reports = await api('/api/reports');
+  const el = document.getElementById('reports-list');
+  if (!reports.length) {
+    el.innerHTML = `<div class="alert alert-info">Nessun report ancora. Clicca "Genera Report" per iniziare.</div>`;
+    return;
+  }
+  el.innerHTML = reports.map(r => {
+    const d = JSON.parse(r.data || '{}');
+    return `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div>
+          <div style="font-size:16px;font-weight:800">Report ${new Date(r.created_at).toLocaleDateString('it')}</div>
+          <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${r.period_start?.slice(0,10)} → ${r.period_end?.slice(0,10)}</div>
+        </div>
+        <div style="display:flex;gap:12px">
+          <div style="text-align:center"><div class="stat-value" style="font-size:20px">€${(d.totalSpend||0).toFixed(0)}</div><div class="stat-sub">Spesa</div></div>
+          <div style="text-align:center"><div class="stat-value accent" style="font-size:20px">${d.totalLeads||0}</div><div class="stat-sub">Lead</div></div>
+          <div style="text-align:center"><div class="stat-value" style="font-size:20px">€${(d.avgCpl||0).toFixed(0)}</div><div class="stat-sub">CPL medio</div></div>
+        </div>
+      </div>
+      <div class="report-body">${(r.ai_insights||'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}</div>
+    </div>`;
+  }).join('');
+}
+
+async function generateReport() {
+  const days = document.getElementById('report-days')?.value || 30;
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '⏳ Generando...';
+
+  try {
+    const res = await api('/api/reports/generate', {
+      method: 'POST',
+      body: JSON.stringify({ account_id: currentAccount, days: parseInt(days) })
+    });
+    if (res.error) { alert('Errore: ' + res.error); return; }
+    await loadReports();
+  } catch(e) { alert('Errore: ' + e.message); }
+
+  btn.disabled = false;
+  btn.textContent = '📋 Genera Report';
+}
+
+// ── SETTINGS PAGE ─────────────────────────────────────────────────────────────
+function renderSettings() {
+  const el = document.getElementById('page-settings');
+  el.innerHTML = `
+  <div class="page-header"><div class="page-title">Impostazioni</div></div>
+
+  <div class="settings-grid">
+    <div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Meta API</div>
+        <div class="alert alert-info" style="margin-bottom:16px">
+          📖 <strong>Come ottenere il Meta Access Token:</strong><br>
+          1. Vai su developers.facebook.com<br>
+          2. Crea un'app → Business<br>
+          3. Tools → Graph API Explorer<br>
+          4. Seleziona la tua app, clicca "Generate Access Token"<br>
+          5. Aggiungi permessi: <code>ads_read</code>, <code>ads_management</code>
+        </div>
+        <div class="form-group">
+          <label>Meta Access Token</label>
+          <input type="password" id="s-meta-token" placeholder="EAAxxxxxxx..." value="${settings.meta_token||''}" />
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Anthropic API</div>
+        <div class="form-group">
+          <label>API Key (per analisi AI)</label>
+          <input type="password" id="s-anthropic-key" placeholder="sk-ant-..." value="${settings.anthropic_key||''}" />
+        </div>
+        <p style="font-size:12px;color:var(--muted)">Ottieni la tua key su console.anthropic.com</p>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-title">Performance Target</div>
+        <div class="form-group">
+          <label>CPL Target (€) — Soglia "Winner"</label>
+          <input type="number" id="s-cpl-target" value="${settings.cpl_target||50}" min="1" max="500" />
+          <p style="font-size:11px;color:var(--muted);margin-top:4px">Gli ad con CPL ≤ €<span id="cpl-preview">${settings.cpl_target||50}</span> vengono considerati WINNER</p>
+        </div>
+        <div class="form-group">
+          <label>Tipo di ottimizzazione principale</label>
+          <select id="s-winner-type">
+            <option value="lead" ${settings.winner_threshold_type==='lead'?'selected':''}>Lead Generation (CPL)</option>
+            <option value="webinar" ${settings.winner_threshold_type==='webinar'?'selected':''}>Registrazione Webinar</option>
+            <option value="consultation" ${settings.winner_threshold_type==='consultation'?'selected':''}>Richiesta Consulenza</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Account Collegati</div>
+        ${accounts.length ? accounts.map(a => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div><div style="font-size:13px;font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${a.id}</div></div>
+            <button class="btn btn-danger btn-sm" onclick="removeAccount('${a.id}')">Rimuovi</button>
+          </div>
+        `).join('') : '<p style="font-size:13px;color:var(--muted)">Nessun account aggiunto</p>'}
+        <button class="btn btn-ghost" style="margin-top:12px;width:100%" onclick="openAddAccount()">+ Aggiungi Account</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;margin-top:24px">
+    <button class="btn btn-primary" onclick="saveSettings()">💾 Salva Impostazioni</button>
+  </div>`;
+
+  document.getElementById('s-cpl-target')?.addEventListener('input', (e) => {
+    document.getElementById('cpl-preview').textContent = e.target.value;
+  });
+}
+
+async function saveSettings() {
+  const body = {
+    meta_token: document.getElementById('s-meta-token').value,
+    anthropic_key: document.getElementById('s-anthropic-key').value,
+    cpl_target: document.getElementById('s-cpl-target').value,
+    winner_threshold_type: document.getElementById('s-winner-type').value,
+  };
+  await api('/api/settings', { method: 'POST', body: JSON.stringify(body) });
+  await loadSettings();
+  alert('✅ Impostazioni salvate!');
+}
+
+// ── ADD ACCOUNT MODAL ─────────────────────────────────────────────────────────
+async function openAddAccount() {
+  if (!settings.meta_token) {
+    alert('Configura prima il Meta Access Token nelle impostazioni!');
+    showPage('settings');
+    return;
+  }
+  const modal = document.getElementById('modal-account');
+  modal.style.display = 'flex';
+  document.getElementById('available-accounts-list').innerHTML = '<div class="spinner"></div>';
+
+  const accts = await api('/api/meta/accounts');
+  if (accts.error) {
+    document.getElementById('available-accounts-list').innerHTML = `<div class="alert alert-error">${accts.error}</div>`;
+    return;
+  }
+  document.getElementById('available-accounts-list').innerHTML = accts.map(a => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div><div style="font-size:14px;font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${a.id} · ${a.currency}</div></div>
+      <button class="btn btn-primary btn-sm" onclick="addAccount('${a.id}')">Aggiungi</button>
+    </div>
+  `).join('') || '<p style="color:var(--muted)">Nessun account trovato</p>';
+}
+
+async function addAccount(id) {
+  const res = await api('/api/accounts/add', { method: 'POST', body: JSON.stringify({ account_id: id }) });
+  if (res.error) { alert('Errore: ' + res.error); return; }
+  closeModal();
+  await loadAccounts();
+  await loadAds();
+}
+
+function closeModal() {
+  document.getElementById('modal-account').style.display = 'none';
+}
+
+// ── START ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
