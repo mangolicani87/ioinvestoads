@@ -70,10 +70,23 @@ db.exec(`
 `);
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+// Mappa tra chiavi DB e variabili d'ambiente Render
+const ENV_MAP = {
+  meta_token: 'META_TOKEN',
+  anthropic_key: 'ANTHROPIC_KEY',
+  cpl_target: 'CPL_TARGET',
+};
+
 function getSetting(key, defaultVal = null) {
+  // Prima cerca nel DB (impostato dall'UI)
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
-  return row ? row.value : defaultVal;
+  if (row && row.value) return row.value;
+  // Poi cerca nelle variabili d'ambiente Render
+  const envKey = ENV_MAP[key];
+  if (envKey && process.env[envKey]) return process.env[envKey];
+  return defaultVal;
 }
+
 function setSetting(key, value) {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, value);
 }
@@ -160,12 +173,31 @@ async function syncAccountAds(accountId, token) {
   // Map insights by ad_id
   const insightsMap = {};
   (insightsData.data || []).forEach(ins => {
-    const leads = (ins.actions || []).find(a =>
-      a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped'
-    );
-    const cplAction = (ins.cost_per_action_type || []).find(a =>
-      a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped'
-    );
+    // Tutti i possibili action_type per lead su Meta
+    const LEAD_TYPES = [
+      'lead',
+      'onsite_conversion.lead_grouped',
+      'onsite_conversion.messaging_conversation_started_7d',
+      'leadgen_grouped',
+      'contact_total',
+      'offsite_conversion.fb_pixel_lead',
+      'onsite_conversion.total_messaging_connection',
+      'contact',
+    ];
+
+    // Somma tutti i tipi di lead trovati
+    let totalLeads = 0;
+    let totalCpl = 0;
+    (ins.actions || []).forEach(a => {
+      if (LEAD_TYPES.includes(a.action_type)) {
+        totalLeads += parseInt(a.value || 0);
+      }
+    });
+    // CPL: prendi il primo disponibile tra i tipi lead
+    const cplAction = (ins.cost_per_action_type || []).find(a => LEAD_TYPES.includes(a.action_type));
+    if (cplAction) totalCpl = parseFloat(cplAction.value || 0);
+    else if (totalLeads > 0) totalCpl = parseFloat(ins.spend || 0) / totalLeads;
+
     const video3s = (ins.video_p25_watched_actions || []).find(a => a.action_type === 'video_view');
     const videoThru = (ins.video_thruplay_watched_actions || []).find(a => a.action_type === 'video_view');
 
@@ -174,8 +206,8 @@ async function syncAccountAds(accountId, token) {
       impressions: parseInt(ins.impressions || 0),
       clicks: parseInt(ins.clicks || 0),
       ctr: parseFloat(ins.ctr || 0),
-      leads: parseInt(leads?.value || 0),
-      cpl: parseFloat(cplAction?.value || 0),
+      leads: totalLeads,
+      cpl: totalCpl,
       video_views_3s: parseInt(video3s?.value || 0),
       video_views_100pct: parseInt(videoThru?.value || 0),
     };
@@ -245,45 +277,56 @@ app.post('/api/analyze/:adId', async (req, res) => {
     const cplTarget = parseFloat(getSetting('cpl_target', '50'));
     const isWinner = ad.leads > 0 && ad.cpl > 0 && ad.cpl <= cplTarget;
 
-    const prompt = `Sei un esperto di performance marketing per servizi di consulenza finanziaria indipendente in Italia (fee-only advisory).
+    const prompt = `Sei un esperto senior di performance marketing per servizi finanziari in Italia. Conosci bene IoInvesto SCF, la più grande rete di consulenti finanziari indipendenti fee-only in Italia.
 
-Analizza questo annuncio Meta Ads per IoInvesto SCF:
+CONTESTO IOINVESTO:
+- Prodotto: consulenza finanziaria indipendente, zero conflitti di interesse, nessuna retrocessione
+- Target principale: famiglie e professionisti italiani 35-60 anni con patrimonio €100k+ che sono delusi dalle banche tradizionali
+- Funnel principale: webinar gratuiti sulla pensione/investimenti → consulenza gratuita → cliente pagante
+- Differenziatore chiave: "paghiamo solo noi, non le banche" — il consulente lavora per il cliente, non per prodotti finanziari
+- Competitor: promotori finanziari di banche (Mediolanum, Fineco, ecc.)
+- CPL target: €${cplTarget} — sotto questa soglia l'ad è considerato vincente
 
-Nome: ${ad.name}
-Status: ${ad.status}
-Thumbnail URL: ${ad.thumbnail_url || 'non disponibile'}
+NOME DELL'AD: ${ad.name}
+STATUS: ${ad.status}
 
-METRICHE:
+METRICHE PERFORMANCE:
 - Spesa: €${ad.spend.toFixed(2)}
-- Impressioni: ${ad.impressions.toLocaleString('it')}
-- Click: ${ad.clicks}
-- CTR: ${ad.ctr.toFixed(2)}%
+- Impressioni: ${ad.impressions.toLocaleString('it-IT')}
+- Click: ${ad.clicks} | CTR: ${ad.ctr.toFixed(2)}%
 - Lead generati: ${ad.leads}
-- CPL (costo per lead): €${ad.cpl.toFixed(2)} (target: €${cplTarget})
-- Hook Rate (3s): ${ad.hook_rate.toFixed(1)}%
-- Hold Rate: ${ad.hold_rate.toFixed(1)}%
-- Performance: ${isWinner ? 'WINNER ✓' : 'DA OTTIMIZZARE ✗'}
+- CPL: ${ad.cpl > 0 ? '€' + ad.cpl.toFixed(2) : 'nessun lead'} (target: €${cplTarget})
+- Hook Rate (prime 3 secondi): ${ad.hook_rate.toFixed(1)}%
+- Hold Rate (completamento video): ${ad.hold_rate.toFixed(1)}%
+- Giudizio: ${isWinner ? '✓ WINNER — CPL sotto target' : ad.leads === 0 && ad.spend > 20 ? '✗ ZERO LEAD — spesa sprecata' : '⚠ DA OTTIMIZZARE — CPL sopra target'}
+
+BENCHMARK DI SETTORE (finanza italiana Meta Ads):
+- Hook Rate buono: >25% | medio: 15-25% | basso: <15%
+- CTR buono: >1.5% | medio: 0.8-1.5% | basso: <0.8%
+- CPL buono per webinar finanziario: €15-35 | medio: €35-60 | alto: >€60
+
+Analizza il nome dell'ad per dedurre il contenuto (es. "avatar_pensione_hook1" → video avatar sul tema pensione con primo hook testato).
 
 Rispondi SOLO con un JSON valido (nessun testo fuori dal JSON):
 {
-  "asset_type": "UGC | Video Avatar AI | Static Image | Carousel | Screen Recording",
-  "visual_format": "Talking Head | Testimonial | Demo | Infografica | Lifestyle",
-  "messaging_angle": "Paura pensione | Indipendenza dal banker | Confronto fee-only vs banca | Autorità/Expert | Rendimento | Protezione patrimonio | Risparmio fiscale",
-  "hook_tactic": "Domanda provocatoria | Dato/Statistica shock | Storia personale | Problema comune | Promessa risultato | Contraddizione",
-  "offer_type": "Webinar gratuito | Consulenza gratuita | Lead magnet | Demo | Nessuna offerta",
+  "asset_type": "UGC | Video Avatar AI | Static Image | Carousel | Screen Recording | Carosello Grafico",
+  "visual_format": "Talking Head | Avatar AI | Testimonial | Demo Prodotto | Infografica | Lifestyle | Testo Animato",
+  "messaging_angle": "Paura pensione | Indipendenza dal banker | Confronto fee-only vs banca | Autorità/Expert | Rendimento garantito | Protezione patrimonio | Risparmio fiscale | Errori comuni investitori | Costi nascosti banca",
+  "hook_tactic": "Domanda provocatoria | Dato/Statistica shock | Storia personale | Problema comune | Promessa risultato | Contraddizione | Sfida al sistema | Identificazione target",
+  "offer_type": "Webinar gratuito pensione | Webinar gratuito investimenti | Consulenza gratuita | Analisi portafoglio gratuita | Lead magnet (guida/report) | Nessuna offerta chiara",
   "funnel_stage": "Top of Funnel | Middle of Funnel | Bottom of Funnel",
-  "ai_summary": "Sommario in 2-3 frasi dell'ad e perché sta performando così",
-  "strengths": ["punto forza 1", "punto forza 2"],
-  "improvements": ["area miglioramento 1", "area miglioramento 2"],
+  "ai_summary": "Analisi in 3 frasi: cosa comunica l'ad, perché sta performando così (con riferimento ai dati specifici), e qual è il problema principale da risolvere",
+  "strengths": ["punto forza specifico con dato", "secondo punto forza"],
+  "improvements": ["problema specifico con dato", "secondo problema"],
   "iterations": [
     {
-      "title": "Iterazione 1",
-      "description": "Descrizione concreta di cosa cambiare",
+      "title": "Variante A: [nome descrittivo]",
+      "description": "Descrizione concreta e specifica di cosa cambiare — non generica. Es: 'Sostituire l'hook con la statistica: X italiani su 10 arriveranno alla pensione con meno del 60% del loro stipendio attuale' oppure 'Aggiungere social proof: mostrare numero di famiglie già seguite da IoInvesto'",
       "expected_impact": "Alto | Medio | Basso"
     },
     {
-      "title": "Iterazione 2", 
-      "description": "Seconda variante da testare",
+      "title": "Variante B: [nome descrittivo]",
+      "description": "Seconda variante concreta e diversa dalla prima — testa una leva diversa (es. se la prima testa l'hook, questa testa l'offerta o il formato)",
       "expected_impact": "Alto | Medio | Basso"
     }
   ]
