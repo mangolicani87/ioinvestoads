@@ -371,6 +371,7 @@ async function renderCreatives() {
           <tr>
             <th></th>
             <th>Nome ad</th>
+            <th>Campagna / Gruppo</th>
             <th>Status</th>
             <th>Spesa</th>
             <th>Lead</th>
@@ -383,7 +384,7 @@ async function renderCreatives() {
             <th></th>
           </tr>
         </thead>
-        <tbody id="ads-tbody"><tr class="loading-row"><td colspan="12"><div class="spinner"></div></td></tr></tbody>
+        <tbody id="ads-tbody"><tr class="loading-row"><td colspan="13"><div class="spinner"></div></td></tr></tbody>
       </table>
     </div>
   </div>`;
@@ -421,19 +422,31 @@ function filterAds() {
   tbody.innerHTML = filtered.map(ad => {
     const isWinner = ad.leads > 0 && ad.cpl > 0 && ad.cpl <= cplTarget;
     const cplColor = !ad.cpl ? '' : (isWinner ? 'good' : (ad.cpl > cplTarget * 1.3 ? 'bad' : 'neutral'));
-    const statusBadge = ad.status === 'ACTIVE' ? 'badge-green' : 'badge-gray';
+    // Usa effective_status (riflette stato reale incluse pause a livello campagna/adset)
+    const effStatus = ad.effective_status || ad.status || 'UNKNOWN';
+    const isReallyActive = effStatus === 'ACTIVE';
+    const statusBadge = isReallyActive ? 'badge-green' : effStatus === 'PAUSED' ? 'badge-yellow' : 'badge-gray';
+    const statusLabel = isReallyActive ? 'ATTIVO' : effStatus === 'PAUSED' ? 'IN PAUSA' : effStatus;
     const aiStatus = ad.ai_summary ? '<span class="badge badge-blue">✓ AI</span>' : '<span class="badge badge-gray">—</span>';
     const thumb = ad.thumbnail_url
       ? `<img src="${ad.thumbnail_url}" style="width:48px;height:48px;border-radius:6px;object-fit:cover" onerror="this.style.display='none'" />`
       : `<div class="ad-row-thumb">📷</div>`;
 
+    // Campagna e gruppo annunci
+    const campaignShort = ad.campaign_name ? ad.campaign_name.substring(0, 30) + (ad.campaign_name.length > 30 ? '…' : '') : '—';
+    const adsetShort = ad.adset_name ? ad.adset_name.substring(0, 30) + (ad.adset_name.length > 30 ? '…' : '') : '—';
+
     return `<tr style="cursor:pointer" onclick="openDetail('${ad.id}')">
       <td>${thumb}</td>
       <td><div class="ad-name">${ad.name}</div><div class="ad-id">${ad.id}</div></td>
-      <td><span class="badge ${statusBadge}">${ad.status}</span></td>
+      <td>
+        <div style="font-size:11px;color:var(--text);font-weight:600;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ad.campaign_name||''}">${campaignShort}</div>
+        <div style="font-size:10px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ad.adset_name||''}">${adsetShort}</div>
+      </td>
+      <td><span class="badge ${statusBadge}">${statusLabel}</span></td>
       <td class="metric">€${(ad.spend||0).toFixed(0)}</td>
       <td class="metric ${isWinner?'good':''}">${ad.leads||0}</td>
-      <td class="metric ${cplColor}">€${(ad.cpl||0).toFixed(0)}</td>
+      <td class="metric ${cplColor}">${ad.cpl ? '€'+(ad.cpl||0).toFixed(0) : '—'}</td>
       <td class="metric">${(ad.ctr||0).toFixed(2)}%</td>
       <td class="metric">${(ad.hook_rate||0).toFixed(1)}%</td>
       <td><span class="badge badge-purple" style="font-size:10px;max-width:140px;overflow:hidden;text-overflow:ellipsis">${ad.messaging_angle||'—'}</span></td>
@@ -479,6 +492,7 @@ function openDetail(adId) {
   if (!ad) return;
   const cplTarget = parseFloat(settings.cpl_target || 50);
   const isWinner = ad.leads > 0 && ad.cpl > 0 && ad.cpl <= cplTarget;
+  const effStatus = ad.effective_status || ad.status || 'UNKNOWN';
   const strengths = ad.strengths ? JSON.parse(ad.strengths) : [];
   const improvements = ad.improvements ? JSON.parse(ad.improvements) : [];
   const iterations = ad.iterations ? JSON.parse(ad.iterations) : [];
@@ -490,12 +504,14 @@ function openDetail(adId) {
       ? `<img src="${ad.thumbnail_url}" style="width:100%;height:160px;object-fit:cover;border-radius:8px;margin-bottom:16px" />`
       : `<div style="width:100%;height:100px;background:var(--surface2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:16px">📷</div>`
     }
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">
       <span class="badge ${isWinner?'badge-green':'badge-red'}">${isWinner?'✓ WINNER':'✗ DA OTTIMIZZARE'}</span>
-      <span class="badge badge-gray">${ad.status}</span>
+      <span class="badge ${effStatus==='ACTIVE'?'badge-green':effStatus==='PAUSED'?'badge-yellow':'badge-gray'}">${effStatus==='ACTIVE'?'ATTIVO':effStatus==='PAUSED'?'IN PAUSA':effStatus}</span>
     </div>
     <h3 style="font-size:16px;font-weight:800;margin:10px 0 4px;line-height:1.3">${ad.name}</h3>
-    <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:16px">${ad.id}</div>
+    ${ad.campaign_name ? `<div style="font-size:11px;color:var(--muted2);margin-bottom:2px">📁 <strong>${ad.campaign_name}</strong></div>` : ''}
+    ${ad.adset_name ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">📂 ${ad.adset_name}</div>` : ''}
+    <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);margin-bottom:16px">${ad.id}</div>
 
     <div class="detail-section">
       <div class="detail-section-title">Metriche</div>
