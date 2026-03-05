@@ -30,6 +30,9 @@ db.exec(`
     account_id TEXT,
     name TEXT,
     status TEXT,
+    effective_status TEXT,
+    campaign_name TEXT,
+    adset_name TEXT,
     thumbnail_url TEXT,
     video_url TEXT,
     spend REAL DEFAULT 0,
@@ -158,9 +161,9 @@ app.delete('/api/accounts/:id', (req, res) => {
 async function syncAccountAds(accountId, token) {
   const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
 
-  // Get ads list with creatives
+  // Get ads with campaign/adset info and effective_status
   const adsData = await metaFetch(
-    `/${actId}/ads?fields=id,name,status,creative{thumbnail_url,video_id}&date_preset=last_90d&limit=200`,
+    `/${actId}/ads?fields=id,name,status,effective_status,campaign{name},adset{name},creative{thumbnail_url,video_id}&date_preset=last_90d&limit=200`,
     token
   );
 
@@ -236,8 +239,8 @@ async function syncAccountAds(accountId, token) {
 
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO ads 
-    (id, account_id, name, status, thumbnail_url, spend, impressions, clicks, ctr, leads, cpl, hook_rate, hold_rate, video_views_3s, video_views_100pct)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, account_id, name, status, effective_status, campaign_name, adset_name, thumbnail_url, spend, impressions, clicks, ctr, leads, cpl, hook_rate, hold_rate, video_views_3s, video_views_100pct)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   for (const ad of (adsData.data || [])) {
@@ -245,8 +248,12 @@ async function syncAccountAds(accountId, token) {
     const hook_rate = ins.impressions > 0 ? ((ins.video_views_3s / ins.impressions) * 100) : 0;
     const hold_rate = ins.video_views_3s > 0 ? ((ins.video_views_100pct / ins.video_views_3s) * 100) : 0;
     const thumbnail = ad.creative?.thumbnail_url || '';
+    const campaignName = ad.campaign?.name || '';
+    const adsetName = ad.adset?.name || '';
+    // effective_status riflette lo stato reale (include pause di campagna/adset)
+    const effectiveStatus = ad.effective_status || ad.status || 'UNKNOWN';
     stmt.run(
-      ad.id, accountId, ad.name, ad.status, thumbnail,
+      ad.id, accountId, ad.name, ad.status, effectiveStatus, campaignName, adsetName, thumbnail,
       ins.spend || 0, ins.impressions || 0, ins.clicks || 0,
       ins.ctr || 0, ins.leads || 0, ins.cpl || 0,
       hook_rate, hold_rate,
