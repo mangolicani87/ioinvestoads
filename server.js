@@ -173,30 +173,51 @@ async function syncAccountAds(accountId, token) {
   // Map insights by ad_id
   const insightsMap = {};
   (insightsData.data || []).forEach(ins => {
-    // Tutti i possibili action_type per lead su Meta
-    const LEAD_TYPES = [
+    // Tutti i possibili action_type per conversioni IoInvesto
+    // Include registrazioni webinar, typeform, lead nativi Meta, e custom conversions
+    const CONVERSION_TYPES = [
+      'complete_registration',           // Registrazione webinar (il principale per IoInvesto)
+      'offsite_conversion.fb_pixel_complete_registration',
       'lead',
       'onsite_conversion.lead_grouped',
-      'onsite_conversion.messaging_conversation_started_7d',
       'leadgen_grouped',
-      'contact_total',
       'offsite_conversion.fb_pixel_lead',
-      'onsite_conversion.total_messaging_connection',
       'contact',
+      'contact_total',
+      'subscribe',
+      'offsite_conversion.fb_pixel_custom', // TypeformSubmit e altre custom
+      'onsite_conversion.messaging_conversation_started_7d',
     ];
 
-    // Somma tutti i tipi di lead trovati
-    let totalLeads = 0;
-    let totalCpl = 0;
+    // Trova la conversione principale con più risultati
+    let bestLeadAction = null;
+    let bestLeadCount = 0;
+
     (ins.actions || []).forEach(a => {
-      if (LEAD_TYPES.includes(a.action_type)) {
-        totalLeads += parseInt(a.value || 0);
+      const val = parseInt(a.value || 0);
+      // Controlla sia tipi noti che qualsiasi custom conversion
+      const isConversion = CONVERSION_TYPES.includes(a.action_type) ||
+        a.action_type.startsWith('offsite_conversion.custom.') ||
+        a.action_type.includes('typeform') ||
+        a.action_type.includes('registration') ||
+        a.action_type.includes('submit') ||
+        a.action_type.includes('lead');
+
+      if (isConversion && val > bestLeadCount) {
+        bestLeadCount = val;
+        bestLeadAction = a;
       }
     });
-    // CPL: prendi il primo disponibile tra i tipi lead
-    const cplAction = (ins.cost_per_action_type || []).find(a => LEAD_TYPES.includes(a.action_type));
-    if (cplAction) totalCpl = parseFloat(cplAction.value || 0);
-    else if (totalLeads > 0) totalCpl = parseFloat(ins.spend || 0) / totalLeads;
+
+    // CPL corrispondente
+    let totalCpl = 0;
+    if (bestLeadAction) {
+      const cplMatch = (ins.cost_per_action_type || []).find(a =>
+        a.action_type === bestLeadAction.action_type
+      );
+      if (cplMatch) totalCpl = parseFloat(cplMatch.value || 0);
+      else if (bestLeadCount > 0) totalCpl = parseFloat(ins.spend || 0) / bestLeadCount;
+    }
 
     const video3s = (ins.video_p25_watched_actions || []).find(a => a.action_type === 'video_view');
     const videoThru = (ins.video_thruplay_watched_actions || []).find(a => a.action_type === 'video_view');
@@ -206,7 +227,7 @@ async function syncAccountAds(accountId, token) {
       impressions: parseInt(ins.impressions || 0),
       clicks: parseInt(ins.clicks || 0),
       ctr: parseFloat(ins.ctr || 0),
-      leads: totalLeads,
+      leads: bestLeadCount,
       cpl: totalCpl,
       video_views_3s: parseInt(video3s?.value || 0),
       video_views_100pct: parseInt(videoThru?.value || 0),
@@ -334,14 +355,43 @@ Rispondi SOLO con un JSON valido (nessun testo fuori dal JSON):
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     });
 
     const raw = message.content[0].text;
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Risposta AI non valida');
-    const analysis = JSON.parse(jsonMatch[0]);
+
+    // Pulizia robusta del JSON
+    let jsonStr = raw;
+    // Rimuovi eventuali backtick markdown
+    jsonStr = jsonStr.replace(/```json\s*/gi, '').replace(/```\s*/gi, '');
+    // Estrai il primo oggetto JSON valido
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Risposta AI non valida - nessun JSON trovato');
+
+    // Sanitizza caratteri problematici nelle stringhe JSON
+    let cleanJson = jsonMatch[0]
+      .replace(/[\x00-\x1F\x7F]/g, ' ') // rimuovi caratteri di controllo
+      .replace(/,(\s*[}\]])/g, '$1');     // rimuovi virgole finali
+
+    let analysis;
+    try {
+      analysis = JSON.parse(cleanJson);
+    } catch(parseErr) {
+      // Fallback: costruisci oggetto manuale dai campi trovati
+      analysis = {
+        asset_type: raw.match(/"asset_type"\s*:\s*"([^"]+)"/)?.[1] || 'Non classificato',
+        visual_format: raw.match(/"visual_format"\s*:\s*"([^"]+)"/)?.[1] || 'Non classificato',
+        messaging_angle: raw.match(/"messaging_angle"\s*:\s*"([^"]+)"/)?.[1] || 'Non classificato',
+        hook_tactic: raw.match(/"hook_tactic"\s*:\s*"([^"]+)"/)?.[1] || 'Non classificato',
+        offer_type: raw.match(/"offer_type"\s*:\s*"([^"]+)"/)?.[1] || 'Non classificato',
+        funnel_stage: raw.match(/"funnel_stage"\s*:\s*"([^"]+)"/)?.[1] || 'Top of Funnel',
+        ai_summary: raw.match(/"ai_summary"\s*:\s*"([^"]+)"/)?.[1] || 'Analisi non disponibile',
+        strengths: ['Dati insufficienti per analisi completa'],
+        improvements: ['Rianalizzare quando disponibili più dati'],
+        iterations: [{ title: 'Rianalizzare', description: 'Clicca AI per una nuova analisi', expected_impact: 'Medio' }]
+      };
+    }
 
     db.prepare(`
       INSERT OR REPLACE INTO ad_analysis 
